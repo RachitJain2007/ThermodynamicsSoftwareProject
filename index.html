@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThermoCubic — Real Gas PVT, H & S Departure & Fugacity Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] } } } };</script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 9999px; }
+    .glass-panel { backdrop-filter: blur(10px); } .tab-active { border-bottom: 2px solid #4f46e5; color: #4f46e5; }
+    @keyframes kpiPulse { 0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.35); } 70% { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0); } 100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); } }
+    .kpi-flash { animation: kpiPulse 0.65s cubic-bezier(0.16, 1, 0.3, 1); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col">
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 glass-panel border-b border-slate-200/80 dark:border-slate-800">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/30"><i data-lucide="atom" class="w-5 h-5"></i></div>
+        <div>
+          <div class="flex items-center gap-2"><h1 class="font-semibold text-base tracking-tight text-slate-900 dark:text-white">ThermoCubic</h1><span class="text-[11px] font-mono px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 font-medium">EOS v3.4</span></div>
+          <p class="text-xs text-slate-500 hidden sm:block">Real Gas PVT, Pure-Component Fugacity &amp; H/S Departure Engine</p>
+        </div>
+      </div>
+      <div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200/70 dark:border-slate-700/60">
+        <button type="button" data-eos="PR" class="eos-btn px-3.5 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 text-indigo-600 shadow-sm">Peng-Robinson (PR)</button>
+        <button type="button" data-eos="SRK" class="eos-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400">Soave-Redlich-Kwong (SRK)</button>
+        <button type="button" data-eos="RK" class="eos-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400">Redlich-Kwong (RK)</button>
+        <button type="button" data-eos="VDW" class="eos-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400">Van der Waals (vdW)</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="basisToggleBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-mono font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5"><i data-lucide="scale" class="w-3.5 h-3.5 text-indigo-500"></i><span id="basisLabel">Units: Molar (mol)</span></button>
+        <button id="downloadFileBtn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/70 flex items-center gap-1.5"><i data-lucide="download" class="w-3.5 h-3.5"></i><span class="hidden sm:inline">Download HTML</span></button>
+        <button id="resetAllBtn" type="button" class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+      </div>
+    </div>
+    <div class="flex md:hidden items-center justify-between gap-1 px-4 py-2 bg-slate-100/80 dark:bg-slate-800/60 border-t border-slate-200/60">
+      <button type="button" data-eos="PR" class="eos-btn flex-1 py-1 px-2 rounded text-xs font-medium bg-white dark:bg-slate-900 text-indigo-600">PR</button>
+      <button type="button" data-eos="SRK" class="eos-btn flex-1 py-1 px-2 rounded text-xs font-medium text-slate-600">SRK</button>
+      <button type="button" data-eos="RK" class="eos-btn flex-1 py-1 px-2 rounded text-xs font-medium text-slate-600">RK</button>
+      <button type="button" data-eos="VDW" class="eos-btn flex-1 py-1 px-2 rounded text-xs font-medium text-slate-600">vdW</button>
+    </div>
+  </header>
+
+  <!-- Active EOS Equations Banner -->
+  <section class="max-w-[1600px] w-full mx-auto px-4 sm:px-6 pt-4 pb-1">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div class="p-3.5 sm:px-5 flex items-center justify-between gap-3 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800">
+        <div class="flex items-center gap-2.5"><span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Model:</span><span id="equationModelTitle" class="text-xs font-bold text-indigo-600">Peng-Robinson (1976)</span></div>
+        <button id="toggleEqCardBtn" type="button" class="text-xs font-medium text-slate-500 hover:text-indigo-600 flex items-center gap-1.5"><span id="toggleEqCardLabel">Show Equations</span><i data-lucide="chevron-down" id="eqCardChevron" class="w-3.5 h-3.5 transition-transform duration-200"></i></button>
+      </div>
+      <div id="equationDetailsContainer" class="hidden p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs font-mono"></div>
+    </div>
+  </section>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+    <!-- Sidebar -->
+    <aside class="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><i data-lucide="flask-conical" class="w-4 h-4 text-indigo-500"></i><h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Select Real Gas</h2></div><span id="fluidFormulaBadge" class="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600">CH₄</span></div>
+        <div class="mb-4"><label for="fluidSelect" class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">Preset Component</label><select id="fluidSelect" class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium"></select></div>
+
+        <div class="pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button id="toggleCritBtn" type="button" class="w-full flex items-center justify-between py-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-indigo-600 transition"><span class="flex items-center gap-1.5"><i data-lucide="sliders" class="w-3.5 h-3.5"></i><span>Gas Constants &amp; Parameters</span></span><i data-lucide="chevron-down" id="critChevron" class="w-3.5 h-3.5 transition-transform duration-200"></i></button>
+          <div id="critEditorDrawer" class="hidden mt-3 p-3 bg-slate-50/80 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/50">
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="block text-[11px] font-medium text-slate-500 mb-1">Critical Temp (T<sub>c</sub>, K)</label><input id="inputTc" type="number" step="0.01" min="1" class="crit-input w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-mono" /></div>
+              <div><label class="block text-[11px] font-medium text-slate-500 mb-1">Critical Press (P<sub>c</sub>, bar)</label><input id="inputPc" type="number" step="0.01" min="0.1" class="crit-input w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-mono" /></div>
+              <div><label class="block text-[11px] font-medium text-slate-500 mb-1">Shape Factor (ω)</label><input id="inputOmega" type="number" step="0.0001" class="crit-input w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-mono" /></div>
+              <div><label class="block text-[11px] font-medium text-slate-500 mb-1">Molar Mass (g/mol)</label><input id="inputMW" type="number" step="0.001" min="1" class="crit-input w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-mono" /></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button id="toggleCpBtn" type="button" class="w-full flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-indigo-600 transition"><span class="flex items-center gap-1.5"><i data-lucide="function-square" class="w-3.5 h-3.5"></i><span>Heat Capacity Constants C<sub>p</sub>(T)</span></span><i data-lucide="chevron-down" id="cpChevron" class="w-3.5 h-3.5 transition-transform duration-200"></i></button>
+          <div id="cpEditorDrawer" class="hidden mt-3 space-y-2.5 bg-slate-50/80 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700/50">
+            <p class="text-[11px] text-slate-500 font-mono">C<sub>p</sub> [J/(mol·K)] = A + B·T + C·T² + D·T³</p>
+            <div class="grid grid-cols-2 gap-2">
+              <div><label class="block text-[10px] font-mono text-slate-500">A</label><input id="inputCpA" type="number" step="any" class="cp-input w-full rounded bg-white dark:bg-slate-900 border border-slate-200 px-2 py-1 text-xs font-mono" /></div>
+              <div><label class="block text-[10px] font-mono text-slate-500">B</label><input id="inputCpB" type="number" step="any" class="cp-input w-full rounded bg-white dark:bg-slate-900 border border-slate-200 px-2 py-1 text-xs font-mono" /></div>
+              <div><label class="block text-[10px] font-mono text-slate-500">C</label><input id="inputCpC" type="number" step="any" class="cp-input w-full rounded bg-white dark:bg-slate-900 border border-slate-200 px-2 py-1 text-xs font-mono" /></div>
+              <div><label class="block text-[10px] font-mono text-slate-500">D</label><input id="inputCpD" type="number" step="any" class="cp-input w-full rounded bg-white dark:bg-slate-900 border border-slate-200 px-2 py-1 text-xs font-mono" /></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><i data-lucide="gauge" class="w-4 h-4 text-indigo-500"></i><h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Current Conditions</h2></div><span id="reducedStateBadge" class="text-[11px] font-mono text-slate-500">T/Tc=1.00, P/Pc=1.00</span></div>
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-1"><label for="inputT" class="text-xs font-medium text-slate-700 dark:text-slate-300">Temperature</label><div class="flex items-center gap-1"><input id="inputT" type="number" step="0.5" class="w-24 text-right rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-mono font-semibold text-indigo-600" /><span class="text-xs font-mono text-slate-500">K</span></div></div>
+          <input id="sliderT" type="range" min="80" max="800" step="0.5" class="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer" />
+          <div class="flex justify-between text-[10px] font-mono text-slate-400 mt-0.5"><span id="sliderTMinLabel">80 K</span><span id="sliderTMaxLabel">800 K</span></div>
+        </div>
+        <div class="mb-4">
+          <div class="flex items-center justify-between mb-1"><label for="inputP" class="text-xs font-medium text-slate-700 dark:text-slate-300">Pressure</label><div class="flex items-center gap-1"><input id="inputP" type="number" step="0.5" class="w-24 text-right rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs font-mono font-semibold text-indigo-600" /><span class="text-xs font-mono text-slate-500">bar</span></div></div>
+          <input id="sliderP" type="range" min="0.1" max="200" step="0.1" class="w-full accent-indigo-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer" />
+          <div class="flex justify-between text-[10px] font-mono text-slate-400 mt-0.5"><span>0.1 bar</span><span id="sliderPMaxLabel">200 bar</span></div>
+        </div>
+        <div class="pt-3 border-t border-slate-100 dark:border-slate-800">
+          <span class="block text-[11px] font-medium text-slate-500 mb-2">Preset States</span>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button type="button" data-preset="sub-vapor" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex justify-between"><span>Low-P Gas</span><span class="text-[10px] opacity-60">Vapor</span></button>
+            <button type="button" data-preset="two-phase" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex justify-between"><span>Boiling Point</span><span class="text-[10px] opacity-60">Sat</span></button>
+            <button type="button" data-preset="comp-liquid" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex justify-between"><span>Cold Liquid</span><span class="text-[10px] opacity-60">Liquid</span></button>
+            <button type="button" data-preset="supercritical" class="preset-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex justify-between"><span>Supercritical</span><span class="text-[10px] opacity-60">Dense</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3"><div class="flex items-center gap-2"><i data-lucide="compass" class="w-4 h-4 text-indigo-500"></i><h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Reference Baseline</h2></div><button id="stdRefBtn" type="button" class="text-[11px] font-medium text-indigo-600 hover:underline">Reset 298.15 K</button></div>
+        <p class="text-[11px] text-slate-500 mb-3">Starting baseline temperature and pressure for energy measurements.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-[11px] font-medium text-slate-500 mb-1">Base Temp (K)</label><input id="inputTref" type="number" step="0.01" value="298.15" class="w-full rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-mono" /></div>
+          <div><label class="block text-[11px] font-medium text-slate-500 mb-1">Base Press (bar)</label><input id="inputPref" type="number" step="0.01" value="1.0" class="w-full rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs font-mono" /></div>
+        </div>
+        <button id="solveStateBtn" type="button" onclick="window.triggerManualCompute && window.triggerManualCompute()" class="mt-4 w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-sm flex items-center justify-center gap-2"><i data-lucide="cpu" class="w-4 h-4"></i><span id="solveBtnText">Calculate Gas Properties</span></button>
+        <div class="mt-2 flex items-center justify-between text-[10px] font-mono text-slate-400"><span id="computeStatusText">Status: Ready</span><span id="computeTimestamp">--:--:--</span></div>
+      </section>
+    </aside>
+
+    <!-- Workspace Tabs -->
+    <div class="lg:col-span-8 xl:col-span-9 flex flex-col gap-5">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm px-4 pt-2 flex items-center justify-between overflow-x-auto">
+        <nav class="flex items-center gap-6">
+          <button type="button" data-tab="solver" class="main-tab-btn tab-active py-3 text-xs sm:text-sm font-medium flex items-center gap-2 whitespace-nowrap"><i data-lucide="layout-grid" class="w-4 h-4"></i><span>Gas Properties &amp; Results</span></button>
+          <button type="button" data-tab="charts" class="main-tab-btn py-3 text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-800 flex items-center gap-2 whitespace-nowrap"><i data-lucide="line-chart" class="w-4 h-4"></i><span>Key Graphs (Z vs P &amp; P vs V)</span></button>
+        </nav>
+        <span id="activeEosBadge" class="hidden xl:inline text-xs font-mono px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">Peng-Robinson (1976)</span>
+      </div>
+
+      <!-- Tab 1: Solver Properties -->
+      <div id="tab-solver" class="tab-panel space-y-5">
+        <div id="phaseBannerCard" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-center gap-2"><span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Current Phase</span><span id="phaseBadge" class="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Supercritical Fluid</span><span id="rootCountBadge" class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600">Single Phase</span></div>
+            <p id="phaseStabilityText" class="text-xs text-slate-600 dark:text-slate-400">Single uniform fluid at this state.</p>
+            <div id="rootsSummaryBar" class="hidden flex-wrap items-center gap-2 pt-1 font-mono text-[11px]"><span class="text-slate-400">All 3 Roots:</span><span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">Z<sub>L</sub> = <strong id="rootValZL">--</strong></span><span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">Z<sub>mid</sub> = <strong id="rootValZmid">--</strong></span><span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Z<sub>V</sub> = <strong id="rootValZV">--</strong></span></div>
+          </div>
+          <div id="rootSelectorBox" class="hidden flex-wrap items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 gap-1">
+            <button type="button" data-root-mode="stable" class="root-mode-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 text-indigo-600 shadow-sm">Most Stable Phase</button>
+            <button type="button" data-root-mode="vapor" class="root-mode-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600">Vapor Phase</button>
+            <button type="button" data-root-mode="liquid" class="root-mode-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600">Liquid Phase</button>
+            <button type="button" data-root-mode="middle" class="root-mode-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600" title="Mechanically unstable root">Middle Root (Unstable)</button>
+          </div>
+        </div>
+
+        <!-- 6 Main KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div class="kpi-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between"><div><div class="flex justify-between text-xs text-slate-500 mb-2"><span class="font-semibold uppercase tracking-wider">Compressibility (Z)</span><span id="kpiEosShort" class="font-mono text-[11px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 font-semibold">PR</span></div><div class="flex items-baseline gap-2"><span id="kpiZ" class="text-3xl font-bold font-mono text-slate-900 dark:text-white">0.8421</span><span class="text-xs font-mono text-slate-400">ratio</span></div><p id="kpiZDeviation" class="text-xs text-slate-500 mt-1">Difference from ideal: -15.8%</p></div><div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between"><span>Z = 1 is Ideal Gas</span><span id="kpiDimA" class="font-mono">Z &lt; 1: More compact</span></div></div>
+          <div class="kpi-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between"><div><div class="flex justify-between text-xs text-slate-500 mb-2"><span class="font-semibold uppercase tracking-wider">Volume (V)</span><i data-lucide="box" class="w-4 h-4 text-indigo-500"></i></div><div class="flex items-baseline gap-2"><span id="kpiV" class="text-3xl font-bold font-mono text-slate-900 dark:text-white">280.12</span><span id="kpiVUnit" class="text-xs font-mono text-slate-500">cm³/mol</span></div><p id="kpiVigCompare" class="text-xs text-slate-500 mt-1">Ideal Gas: 332.6 cm³/mol</p></div><div class="mt-4 pt-3 border-t border-slate-100 text-[11px] font-mono text-slate-500 flex justify-between"><span>Size (b):</span><span id="kpiParamB" class="font-semibold">26.8 cm³/mol</span></div></div>
+          <div class="kpi-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between"><div><div class="flex justify-between text-xs text-slate-500 mb-2"><span class="font-semibold uppercase tracking-wider">Density (ρ)</span><i data-lucide="layers" class="w-4 h-4 text-indigo-500"></i></div><div class="flex items-baseline gap-2"><span id="kpiDensity" class="text-3xl font-bold font-mono text-slate-900 dark:text-white">57.27</span><span class="text-xs font-mono text-slate-500">kg/m³</span></div><p id="kpiMolarDensity" class="text-xs text-slate-500 mt-1">Molar conc: 3.57 mol/L</p></div><div class="mt-4 pt-3 border-t border-slate-100 text-[11px] font-mono text-slate-500 flex justify-between"><span>Specific volume:</span><span id="kpiSpecVol" class="font-semibold">0.0175 m³/kg</span></div></div>
+          <div class="kpi-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between"><div><div class="flex justify-between text-xs text-slate-500 mb-2"><span class="font-semibold uppercase tracking-wider">Fugacity (f = φ·P)</span><span class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-600">Effective Pressure</span></div><div class="flex items-baseline gap-2"><span id="kpiFugacity" class="text-3xl font-bold font-mono text-emerald-600">42.68</span><span class="text-xs font-mono text-slate-500">bar</span></div><p class="text-xs text-slate-500 mt-1">Fugacity Coeff: <span class="font-mono font-semibold">φ = <span id="kpiPhi">0.8536</span></span></p></div><div class="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex justify-between"><span>Real vs Ideal:</span><span class="font-mono font-semibold text-emerald-600">φ &lt; 1 (Attraction)</span></div></div>
+          <div class="kpi-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between"><div><div class="flex justify-between text-xs text-slate-500 mb-2"><span class="font-semibold uppercase tracking-wider">Enthalpy (H)</span><i data-lucide="flame" class="w-4 h-4 text-emerald-500"></i></div><div class="flex items-baseline gap-2"><span id="kpiH" class="text-3xl font-bold font-mono text-slate-900 dark:text-white">-4.51</span><span id="kpiHUnit" class="text-xs font-mono text-slate-500">kJ/mol</span></div><p id="kpiHSecondary" class="text-xs text-slate-500 mt-1">Specific: -281.2 kJ/kg</p></div></div>
+          <div class="kpi-card bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 flex flex-col justify-between"><div><div class="flex justify-between text-xs text-slate-500 mb-2"><span class="font-semibold uppercase tracking-wider">Entropy (S)</span><i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i></div><div class="flex items-baseline gap-2"><span id="kpiS" class="text-3xl font-bold font-mono text-slate-900 dark:text-white">-49.84</span><span id="kpiSUnit" class="text-xs font-mono text-slate-500">J/(mol·K)</span></div><p id="kpiSSecondary" class="text-xs text-slate-500 mt-1">Specific: -3.107 kJ/(kg·K)</p></div></div>
+        </div>
+
+        <!-- H & S Breakdowns -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5"><div class="flex justify-between mb-3"><h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2"><i data-lucide="flame" class="w-4 h-4 text-emerald-500"></i><span>Enthalpy Breakdown (H = ΔH<sup>ig</sup> + H<sup>R</sup>)</span></h3><span id="hRefBadge" class="text-[11px] font-mono text-slate-400">From 298.15 K</span></div><div class="space-y-2 text-xs font-mono"><div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Ideal Gas Thermal Heat (ΔH<sup>ig</sup>):</span><span id="detailHig" class="font-medium">-3.32 kJ/mol</span></div><div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Real Gas Pressure Correction (H<sup>R</sup>):</span><span id="detailHR" class="font-semibold text-emerald-600">-1.19 kJ/mol</span></div><div class="flex justify-between pt-1"><span class="font-sans font-semibold">Total Enthalpy (H):</span><span id="detailHTotal" class="text-sm font-bold text-slate-900 dark:text-white">-4.51 kJ/mol</span></div></div></div>
+          <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5"><div class="flex justify-between mb-3"><h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2"><i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i><span>Entropy Breakdown (S = ΔS<sup>ig</sup> + S<sup>R</sup>)</span></h3><span id="sRefBadge" class="text-[11px] font-mono text-slate-400">From 298.15 K, 1 bar</span></div><div class="space-y-2 text-xs font-mono"><div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Ideal Gas Entropy Change (ΔS<sup>ig</sup>):</span><span id="detailSig" class="font-medium">-45.19 J/(mol·K)</span></div><div class="flex justify-between py-1 border-b border-slate-100"><span class="text-slate-500">Real Gas Pressure Correction (S<sup>R</sup>):</span><span id="detailSR" class="font-semibold text-amber-600">-4.65 J/(mol·K)</span></div><div class="flex justify-between pt-1"><span class="font-sans font-semibold">Total Entropy (S):</span><span id="detailSTotal" class="text-sm font-bold text-slate-900 dark:text-white">-49.84 J/(mol·K)</span></div></div></div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-mono"><span class="text-slate-400 uppercase font-sans font-semibold text-[11px]">Normalized Conditions:</span><span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800">T / T<sub>c</sub> = <strong id="barParamTr">1.050</strong></span><span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800">P / P<sub>c</sub> = <strong id="barParamPr">1.087</strong></span><span class="text-slate-500">Attraction Parameter A = <strong id="barParamA" class="text-slate-800 dark:text-slate-200">0.1942</strong></span><span class="text-slate-500">Size Parameter B = <strong id="barParamB" class="text-slate-800 dark:text-slate-200">0.0805</strong></span></div>
+      </div>
+
+      <!-- Tab 2: Graphs -->
+      <div id="tab-charts" class="tab-panel hidden space-y-5">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5">
+          <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div><h3 class="text-sm font-semibold flex items-center gap-2"><i data-lucide="activity" class="w-4 h-4 text-indigo-500"></i><span>Pressure Behavior Curves</span></h3><p class="text-xs text-slate-500">Curves showing gas behavior across pressure at <span id="chartHeaderTempLabel" class="font-mono font-semibold text-indigo-600">T = 200.0 K</span>.</p></div>
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="flex items-center gap-2 text-xs font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer"><input id="chartCompareAllEos" type="checkbox" class="rounded text-indigo-600 w-3.5 h-3.5" checked /><span>Compare all 4 models</span></label>
+              <div class="flex items-center gap-1.5"><label for="chartMaxP" class="text-xs text-slate-500 font-medium">Max Pressure:</label><select id="chartMaxP" class="rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 px-2 py-1 text-xs font-mono"><option value="50">50 bar</option><option value="100">100 bar</option><option value="200" selected>200 bar</option><option value="400">400 bar</option><option value="600">600 bar</option></select></div>
+              <button id="resetChartsBtn" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border flex items-center gap-1"><i data-lucide="maximize-2" class="w-3.5 h-3.5"></i><span>Auto Scale</span></button>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 mt-4">
+            <div class="flex flex-col bg-slate-50/60 dark:bg-slate-950/50 rounded-xl border border-slate-200 p-3"><div class="flex justify-between mb-2 px-1"><h4 class="text-xs font-semibold">1. Compressibility vs. Pressure (Z vs. P)</h4><span class="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-50 text-indigo-600">Click to set P</span></div><div class="relative w-full h-[360px] rounded-lg overflow-hidden bg-white dark:bg-slate-900 border"><canvas id="canvasZP" class="w-full h-full cursor-crosshair"></canvas><div id="tooltipZP" class="hidden absolute pointer-events-none bg-white/95 dark:bg-slate-900/95 border shadow rounded-xl p-2 text-[11px] font-mono z-20"></div></div></div>
+            <div class="flex flex-col bg-slate-50/60 dark:bg-slate-950/50 rounded-xl border border-slate-200 p-3"><div class="flex justify-between mb-2 px-1"><h4 class="text-xs font-semibold">2. Pressure vs. Volume (P vs. V)</h4><span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-600">Click to set P</span></div><div class="relative w-full h-[360px] rounded-lg overflow-hidden bg-white dark:bg-slate-900 border"><canvas id="canvasPV" class="w-full h-full cursor-crosshair"></canvas><div id="tooltipPV" class="hidden absolute pointer-events-none bg-white/95 dark:bg-slate-900/95 border shadow rounded-xl p-2 text-[11px] font-mono z-20"></div></div></div>
+          </div>
+          <div class="mt-4 pt-3 border-t flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+            <div class="flex flex-wrap items-center gap-4"><span class="flex items-center gap-1.5"><span class="w-3.5 h-0.5 bg-indigo-600 inline-block"></span> PR</span><span class="flex items-center gap-1.5"><span class="w-3.5 h-0.5 bg-emerald-500 inline-block"></span> SRK</span><span class="flex items-center gap-1.5"><span class="w-3.5 h-0.5 bg-amber-500 inline-block"></span> RK</span><span class="flex items-center gap-1.5"><span class="w-3.5 h-0.5 bg-rose-500 inline-block"></span> vdW</span></div>
+            <span class="text-[11px] font-mono">Hover to inspect • Click on charts to set current pressure</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t py-4 px-6 text-center text-xs text-slate-400"><div class="max-w-[1600px] mx-auto flex justify-between"><span>ThermoCubic — Cubic Equations of State Calculator</span><span class="font-mono">R = 8.314 J/(mol·K)</span></div></footer>
+
+  <!-- Unified Thermodynamic Computation & Rendering Engine -->
+  <script>
+    const R_J = 8.314462618, R_BAR_CM3 = 83.14462618;
+    const FLUID_DATABASE = [
+      { id: 'CH4', name: 'Methane (CH₄)', formula: 'CH₄', Tc: 190.56, Pc: 45.99, omega: 0.0115, MW: 16.043, cp: { A: 19.25, B: 0.05213, C: 1.197e-5, D: -1.132e-8 }, defaultT: 200, defaultP: 50 },
+      { id: 'C2H6', name: 'Ethane (C₂H₆)', formula: 'C₂H₆', Tc: 305.32, Pc: 48.72, omega: 0.0995, MW: 30.070, cp: { A: 5.409, B: 0.1781, C: -6.938e-5, D: 8.713e-9 }, defaultT: 310, defaultP: 45 },
+      { id: 'C3H8', name: 'Propane (C₃H₈)', formula: 'C₃H₈', Tc: 369.83, Pc: 42.48, omega: 0.1523, MW: 44.097, cp: { A: -4.224, B: 0.3063, C: -1.586e-4, D: 3.215e-8 }, defaultT: 350, defaultP: 25 },
+      { id: 'C4H10', name: 'n-Butane (n-C₄H₁₀)', formula: 'C₄H₁₀', Tc: 425.12, Pc: 37.96, omega: 0.2002, MW: 58.123, cp: { A: 9.487, B: 0.3313, C: -1.108e-4, D: -2.822e-9 }, defaultT: 400, defaultP: 20 },
+      { id: 'CO2', name: 'Carbon Dioxide (CO₂)', formula: 'CO₂', Tc: 304.13, Pc: 73.77, omega: 0.2239, MW: 44.010, cp: { A: 19.80, B: 0.07344, C: -5.602e-5, D: 1.715e-8 }, defaultT: 310, defaultP: 75 },
+      { id: 'N2', name: 'Nitrogen (N₂)', formula: 'N₂', Tc: 126.20, Pc: 33.98, omega: 0.0372, MW: 28.013, cp: { A: 31.15, B: -0.01357, C: 2.680e-5, D: -1.168e-8 }, defaultT: 150, defaultP: 40 },
+      { id: 'H2O', name: 'Water / Steam (H₂O)', formula: 'H₂O', Tc: 647.10, Pc: 220.64, omega: 0.3443, MW: 18.015, cp: { A: 32.24, B: 0.001924, C: 1.055e-5, D: -3.596e-9 }, defaultT: 600, defaultP: 100 },
+      { id: 'O2', name: 'Oxygen (O₂)', formula: 'O₂', Tc: 154.58, Pc: 50.43, omega: 0.0222, MW: 31.999, cp: { A: 28.11, B: -3.680e-6, C: 1.746e-5, D: -1.065e-8 }, defaultT: 180, defaultP: 45 },
+      { id: 'H2', name: 'Hydrogen (H₂)', formula: 'H₂', Tc: 33.19, Pc: 13.13, omega: -0.2160, MW: 2.016, cp: { A: 27.14, B: 0.009274, C: -1.381e-5, D: 7.645e-9 }, defaultT: 60, defaultP: 20 },
+      { id: 'NH3', name: 'Ammonia (NH₃)', formula: 'NH₃', Tc: 405.40, Pc: 113.53, omega: 0.2560, MW: 17.031, cp: { A: 27.31, B: 0.02383, C: 1.707e-5, D: -1.185e-8 }, defaultT: 400, defaultP: 60 },
+      { id: 'H2S', name: 'Hydrogen Sulfide (H₂S)', formula: 'H₂S', Tc: 373.40, Pc: 89.63, omega: 0.0942, MW: 34.081, cp: { A: 31.94, B: 0.001436, C: 2.432e-5, D: -1.176e-8 }, defaultT: 360, defaultP: 50 },
+      { id: 'CUSTOM', name: 'Custom Fluid', formula: 'CUST', Tc: 300, Pc: 50, omega: 0.15, MW: 40, cp: { A: 25, B: 0.05, C: 0, D: 0 }, defaultT: 300, defaultP: 40 }
+    ];
+
+    const appState = { eos: 'PR', fluidId: 'CH4', Tc: 190.56, Pc: 45.99, omega: 0.0115, MW: 16.043, cp: { A: 19.25, B: 0.05213, C: 1.197e-5, D: -1.132e-8 }, T: 200, P: 50, Tref: 298.15, Pref: 1.0, basis: 'molar', selectedRootMode: 'stable', activeTab: 'solver', lastResult: null };
+
+    function getEOSParameters(eosType, T, P, Tc, Pc, omega) {
+      const Tr = T / Tc, Pr = P / Pc; let delta1 = 0, delta2 = 0, omegaA = 0, omegaB = 0, alpha = 1, dAlpha_dT = 0, fullName = '';
+      if (eosType === 'PR') {
+        fullName = 'Peng-Robinson (1976)'; delta1 = 1 + Math.SQRT2; delta2 = 1 - Math.SQRT2; omegaA = 0.457235529; omegaB = 0.077796074;
+        const kappa = omega <= 0.491 ? 0.37464 + 1.54226 * omega - 0.26992 * (omega ** 2) : 0.379642 + 1.48503 * omega - 0.164423 * (omega ** 2) + 0.016666 * (omega ** 3);
+        const term = 1 + kappa * (1 - Math.sqrt(Tr)); alpha = term * term; dAlpha_dT = -kappa * term / Math.sqrt(T * Tc);
+      } else if (eosType === 'SRK') {
+        fullName = 'Soave-Redlich-Kwong (1972)'; delta1 = 1; delta2 = 0; omegaA = 0.427480233; omegaB = 0.086640350;
+        const kappa = 0.480 + 1.574 * omega - 0.176 * (omega ** 2);
+        const term = 1 + kappa * (1 - Math.sqrt(Tr)); alpha = term * term; dAlpha_dT = -kappa * term / Math.sqrt(T * Tc);
+      } else if (eosType === 'RK') {
+        fullName = 'Redlich-Kwong (1949)'; delta1 = 1; delta2 = 0; omegaA = 0.427480233; omegaB = 0.086640350; alpha = 1 / Math.sqrt(Tr); dAlpha_dT = -0.5 * Math.sqrt(Tc) * Math.pow(T, -1.5);
+      } else {
+        fullName = 'Van der Waals (1873)'; delta1 = 0; delta2 = 0; omegaA = 27 / 64; omegaB = 1 / 8;
+      }
+      const ac_bar = omegaA * (R_BAR_CM3 * Tc) ** 2 / Pc, b_cm3 = omegaB * (R_BAR_CM3 * Tc) / Pc, aT_bar = ac_bar * alpha;
+      const ac_J = ac_bar * 0.1, aT_J = aT_bar * 0.1, dadT_J = ac_J * dAlpha_dT, A = (aT_bar * P) / (R_BAR_CM3 * T) ** 2, B = (b_cm3 * P) / (R_BAR_CM3 * T);
+      const s = delta1 + delta2, p = delta1 * delta2;
+      return { eosType, fullName, Tr, Pr, delta1, delta2, aT_bar_cm6: aT_bar, b_cm3, aT_J_cm3: aT_J, dadT_J_cm3: dadT_J, A, B, c2: (s - 1) * B - 1, c1: A + (p - s) * B * B - s * B, c0: -(A * B + p * B * B + p * (B ** 3)) };
+    }
+
+    function solveCubicRootsZ(c2, c1, c0, B) {
+      const Q = (3 * c1 - c2 * c2) / 9, R = (9 * c2 * c1 - 27 * c0 - 2 * (c2 ** 3)) / 54, D = (Q ** 3) + R ** 2; let raw = [];
+      if (D > 1e-14) { const S = Math.cbrt(R + Math.sqrt(D)), T = Math.cbrt(R - Math.sqrt(D)); raw.push(S + T - c2 / 3); }
+      else if (Math.abs(D) <= 1e-14) { const S = Math.cbrt(R); raw.push(2 * S - c2 / 3, -S - c2 / 3); }
+      else { const th = Math.acos(Math.max(-1, Math.min(1, R / Math.sqrt(-(Q ** 3))))), sq = 2 * Math.sqrt(-Q); raw.push(sq * Math.cos(th / 3) - c2 / 3, sq * Math.cos((th + 2 * Math.PI) / 3) - c2 / 3, sq * Math.cos((th + 4 * Math.PI) / 3) - c2 / 3); }
+      const valid = raw.filter(z => z > B + 1e-9).sort((a, b) => a - b); return valid.length ? valid : [Math.max(...raw, B + 1e-6)];
+    }
+
+    function evaluateRootProperties(Z, T, P, MW, params) {
+      const { delta1, delta2, A, B, b_cm3, aT_J_cm3, dadT_J_cm3 } = params, V_cm3 = (Z * R_BAR_CM3 * T) / P, density_kg_m3 = (MW * 1e-3) / (V_cm3 * 1e-6), safeZ = Math.max(1e-12, Z - B);
+      let logFactor_B = 0, logFactor_b = 0;
+      if (Math.abs(delta1 - delta2) < 1e-9) { logFactor_B = 1 / Z; logFactor_b = 1 / V_cm3; }
+      else { const r = Math.log(Math.max(1e-12, (Z + delta1 * B) / (Z + delta2 * B))), d = delta1 - delta2; logFactor_B = r / (d * B); logFactor_b = r / (d * b_cm3); }
+      const lnPhi = (Z - 1) - Math.log(safeZ) - A * logFactor_B, HR_J = R_J * T * (Z - 1) + (T * dadT_J_cm3 - aT_J_cm3) * logFactor_b, SR_J = R_J * Math.log(safeZ) + dadT_J_cm3 * logFactor_b;
+      return { Z, V_cm3, Vig_cm3: (R_BAR_CM3 * T) / P, density_kg_m3, lnPhi, phi: Math.exp(lnPhi), fugacity_bar: Math.exp(lnPhi) * P, HR_kJ_mol: HR_J / 1000, SR_J_molK: SR_J };
+    }
+
+    function computeIdealGasChanges(T, P, Tref, Pref, cp) {
+      const { A, B, C, D } = cp;
+      return {
+        dH_ig_kJ: (A * (T - Tref) + 0.5 * B * (T ** 2 - Tref ** 2) + (C / 3) * (T ** 3 - Tref ** 3) + 0.25 * D * (T ** 4 - Tref ** 4)) / 1000,
+        dS_ig_J_K: A * Math.log(T / Tref) + B * (T - Tref) + 0.5 * C * (T ** 2 - Tref ** 2) + (D / 3) * (T ** 3 - Tref ** 3) - R_J * Math.log(P / Pref)
+      };
+    }
+
+    function solveThermodynamicState(eosType, stateObj) {
+      const { T, P, Tc, Pc, omega, MW, cp, Tref, Pref } = stateObj, params = getEOSParameters(eosType, T, P, Tc, Pc, omega);
+      const zRoots = solveCubicRootsZ(params.c2, params.c1, params.c0, params.B), ig = computeIdealGasChanges(T, P, Tref, Pref, cp);
+      const roots = zRoots.map((z, i) => {
+        const props = evaluateRootProperties(z, T, P, MW, params);
+        const H_mol = ig.dH_ig_kJ + props.HR_kJ_mol, S_mol = ig.dS_ig_J_K + props.SR_J_molK;
+        const branchLabel = zRoots.length === 3 ? (i === 0 ? 'Liquid-Like Root (Z_L)' : i === 1 ? 'Unstable Spinodal Root (Z_mid)' : 'Vapor-Like Root (Z_V)') : params.Tr >= 1 && params.Pr >= 1 ? 'Supercritical Fluid' : params.Tr >= 1 ? 'Supercritical Gas' : z < 0.35 && params.Pr > 0.5 ? 'Compressed Liquid' : 'Subcritical Vapor';
+        return { ...props, branchLabel, totalH_kJ_mol: H_mol, totalS_J_molK: S_mol, totalH_kJ_kg: (H_mol * 1000) / MW, totalS_kJ_kgK: S_mol / MW };
+      });
+      let stableRoot = roots[0], phaseBadgeText = roots[0].branchLabel, phaseSummary = `Single uniform phase at this condition (Z = ${roots[0].Z.toFixed(4)}).`;
+      if (roots.length > 1) {
+        const liq = roots[0], vap = roots[roots.length - 1];
+        if (Math.abs(liq.fugacity_bar - vap.fugacity_bar) / Math.max(1e-9, vap.fugacity_bar) < 1e-3) { stableRoot = vap; phaseBadgeText = 'Boiling Point / Equilibrium'; phaseSummary = `Liquid & vapor in equilibrium (f = ${vap.fugacity_bar.toFixed(2)} bar).`; }
+        else if (liq.lnPhi < vap.lnPhi) { stableRoot = liq; phaseBadgeText = 'Liquid Phase (Stable)'; phaseSummary = `Liquid phase has lower fugacity (${liq.fugacity_bar.toFixed(2)} bar vs. ${vap.fugacity_bar.toFixed(2)} bar).`; }
+        else { stableRoot = vap; phaseBadgeText = 'Vapor Phase (Stable)'; phaseSummary = `Vapor phase has lower fugacity (${vap.fugacity_bar.toFixed(2)} bar vs. ${liq.fugacity_bar.toFixed(2)} bar).`; }
+      }
+      let activeRoot = stableRoot;
+      if (roots.length > 1) {
+        if (appState.selectedRootMode === 'vapor') activeRoot = roots[roots.length - 1];
+        else if (appState.selectedRootMode === 'liquid') activeRoot = roots[0];
+        else if (appState.selectedRootMode === 'middle' && roots.length >= 3) activeRoot = roots[1];
+      }
+      return { params, ig, roots, stableRoot, activeRoot, phaseBadgeText, phaseSummary };
+    }
+
+    const setElText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    const setElHTML = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
+    function showToast(msg) {
+      const c = document.getElementById('toastContainer'), t = document.createElement('div');
+      t.className = 'px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-medium shadow-lg flex items-center gap-2 transition-all';
+      t.innerHTML = `<span>✓</span><span>${msg}</span>`; c.appendChild(t);
+      setTimeout(() => { t.classList.add('opacity-0'); setTimeout(() => t.remove(), 300); }, 2200);
+    }
+
+    function populateFluidDropdown() {
+      document.getElementById('fluidSelect').innerHTML = FLUID_DATABASE.map(f => `<option value="${f.id}">${f.name} (Tc: ${f.Tc} K, Pc: ${f.Pc} bar)</option>`).join('');
+      document.getElementById('fluidSelect').value = appState.fluidId;
+    }
+
+    function loadFluidPreset(id, resetTP = true) {
+      const f = FLUID_DATABASE.find(x => x.id === id) || FLUID_DATABASE[0];
+      Object.assign(appState, { fluidId: f.id, Tc: f.Tc, Pc: f.Pc, omega: f.omega, MW: f.MW, cp: { ...f.cp } });
+      if (resetTP) { appState.T = f.defaultT; appState.P = f.defaultP; }
+      ['fluidSelect', 'inputTc', 'inputPc', 'inputOmega', 'inputMW', 'inputCpA', 'inputCpB', 'inputCpC', 'inputCpD'].forEach(k => {
+        const v = k === 'fluidSelect' ? f.id : k === 'inputTc' ? appState.Tc : k === 'inputPc' ? appState.Pc : k === 'inputOmega' ? appState.omega : k === 'inputMW' ? appState.MW : appState.cp[k.replace('inputCp', '')];
+        const el = document.getElementById(k); if (el) el.value = v;
+      });
+      setElText('fluidFormulaBadge', f.formula);
+      const minT = Math.max(40, Math.round(f.Tc * 0.45)), maxT = Math.round(f.Tc * 2.5), maxP = Math.max(150, Math.round(f.Pc * 3.0));
+      Object.assign(document.getElementById('sliderT'), { min: minT, max: maxT }); Object.assign(document.getElementById('sliderP'), { max: maxP });
+      setElText('sliderTMinLabel', `${minT} K`); setElText('sliderTMaxLabel', `${maxT} K`); setElText('sliderPMaxLabel', `${maxP} bar`);
+      syncTPInputs(); updateAllCalculations();
+    }
+
+    function syncTPInputs() {
+      ['T', 'P'].forEach(k => { const el = document.getElementById(`input${k}`), sld = document.getElementById(`slider${k}`); if (el) el.value = Number(appState[k].toFixed(2)); if (sld) sld.value = appState[k]; });
+      setElText('inputTref', appState.Tref); setElText('inputPref', appState.Pref);
+    }
+
+    function estimateSaturationPressure(T, Tc, Pc, omega) {
+      const Tr = T / Tc; if (Tr >= 1.0) return Pc;
+      return Math.max(0.1, Pc * Math.exp((5.927 - 6.096 / Tr - 1.288 * Math.log(Tr) + 0.169 * Tr ** 6) + omega * (15.25 - 15.68 / Tr - 13.47 * Math.log(Tr) + 0.435 * Tr ** 6)));
+    }
+
+    function applyQuickRegimePreset(type) {
+      const { Tc, Pc, omega } = appState;
+      if (type === 'sub-vapor') { appState.T = Number((0.88 * Tc).toFixed(2)); appState.P = Number(Math.max(0.5, estimateSaturationPressure(appState.T, Tc, Pc, omega) * 0.45).toFixed(2)); }
+      else if (type === 'two-phase') { appState.T = Number((0.85 * Tc).toFixed(2)); appState.P = Number(estimateSaturationPressure(appState.T, Tc, Pc, omega).toFixed(2)); }
+      else if (type === 'comp-liquid') { appState.T = Number((0.80 * Tc).toFixed(2)); appState.P = Number(Math.max(estimateSaturationPressure(appState.T, Tc, Pc, omega) * 1.6, Pc * 0.85).toFixed(2)); }
+      else if (type === 'supercritical') { appState.T = Number((1.25 * Tc).toFixed(2)); appState.P = Number((1.40 * Pc).toFixed(2)); }
+      appState.selectedRootMode = 'stable'; syncTPInputs(); updateAllCalculations();
+    }
+
+    function syncInputsToState() {
+      const p = (id, minVal = -Infinity) => { const el = document.getElementById(id); return (el && !isNaN(parseFloat(el.value))) ? Math.max(minVal, parseFloat(el.value)) : null; };
+      appState.Tc = p('inputTc', 5) ?? appState.Tc; appState.Pc = p('inputPc', 0.1) ?? appState.Pc; appState.omega = p('inputOmega') ?? appState.omega; appState.MW = p('inputMW', 0.5) ?? appState.MW;
+      appState.T = p('inputT', 10) ?? appState.T; appState.P = p('inputP', 0.001) ?? appState.P; appState.Tref = p('inputTref', 10) ?? appState.Tref; appState.Pref = p('inputPref', 0.001) ?? appState.Pref;
+      ['A', 'B', 'C', 'D'].forEach(k => { appState.cp[k] = p(`inputCp${k}`) ?? appState.cp[k]; });
+    }
+
+    function updateAllCalculations(pulse = false) {
+      const res = solveThermodynamicState(appState.eos, appState); appState.lastResult = res;
+      const { params, ig, roots, activeRoot } = res, isMass = appState.basis === 'mass', MW = appState.MW;
+      setElText('activeEosBadge', params.fullName); renderActiveEosEquations(appState.eos);
+      setElText('computeStatusText', `Calculated (${appState.eos})`); setElText('computeTimestamp', new Date().toLocaleTimeString([], { hour12: false }));
+      setElText('phaseBadge', res.phaseBadgeText); setElText('phaseStabilityText', res.phaseSummary); setElText('rootCountBadge', roots.length > 1 ? `${roots.length} Solutions (Dome)` : 'Single Phase');
+
+      const sBox = document.getElementById('rootSelectorBox'), rSum = document.getElementById('rootsSummaryBar');
+      if (sBox) sBox.classList.toggle('hidden', roots.length < 2);
+      if (rSum) { rSum.classList.toggle('hidden', roots.length < 3); if (roots.length >= 3) { setElText('rootValZL', roots[0].Z.toFixed(4)); setElText('rootValZmid', roots[1].Z.toFixed(4)); setElText('rootValZV', roots[2].Z.toFixed(4)); } }
+
+      setElText('reducedStateBadge', `T/Tc = ${(appState.T / appState.Tc).toFixed(2)}, P/Pc = ${(appState.P / appState.Pc).toFixed(2)}`);
+      setElText('kpiZ', activeRoot.Z.toFixed(4));
+      const zDev = ((activeRoot.Z - 1) * 100).toFixed(1); setElText('kpiZDeviation', `Difference from ideal: ${zDev > 0 ? '+' : ''}${zDev}%`);
+
+      if (!isMass) {
+        setElText('kpiV', activeRoot.V_cm3 < 1000 ? activeRoot.V_cm3.toFixed(2) : Math.round(activeRoot.V_cm3).toLocaleString()); setElText('kpiVUnit', 'cm³/mol');
+        setElHTML('kpiVigCompare', `Ideal gas: ${Math.round(activeRoot.Vig_cm3).toLocaleString()} cm³/mol`);
+        setElText('kpiH', activeRoot.totalH_kJ_mol.toFixed(2)); setElText('kpiHUnit', 'kJ/mol'); setElText('kpiHSecondary', `Specific: ${activeRoot.totalH_kJ_kg.toFixed(1)} kJ/kg`);
+        setElText('kpiS', activeRoot.totalS_J_molK.toFixed(2)); setElText('kpiSUnit', 'J/(mol·K)'); setElText('kpiSSecondary', `Specific: ${activeRoot.totalS_kJ_kgK.toFixed(3)} kJ/(kg·K)`);
+      } else {
+        setElText('kpiV', (1 / activeRoot.density_kg_m3).toFixed(4)); setElText('kpiVUnit', 'm³/kg'); setElHTML('kpiVigCompare', `Molar volume: ${activeRoot.V_cm3.toFixed(2)} cm³/mol`);
+        setElText('kpiH', activeRoot.totalH_kJ_kg.toFixed(1)); setElText('kpiHUnit', 'kJ/kg'); setElText('kpiHSecondary', `Molar: ${activeRoot.totalH_kJ_mol.toFixed(2)} kJ/mol`);
+        setElText('kpiS', activeRoot.totalS_kJ_kgK.toFixed(3)); setElText('kpiSUnit', 'kJ/(kg·K)'); setElText('kpiSSecondary', `Molar: ${activeRoot.totalS_J_molK.toFixed(2)} J/(mol·K)`);
+      }
+
+      setElText('kpiDensity', activeRoot.density_kg_m3.toFixed(2)); setElText('kpiMolarDensity', `Molar conc: ${(1000 / activeRoot.V_cm3).toFixed(2)} mol/L`);
+      setElText('kpiSpecVol', `${(1 / activeRoot.density_kg_m3).toFixed(4)} m³/kg`); setElText('kpiFugacity', activeRoot.fugacity_bar.toFixed(2)); setElText('kpiPhi', activeRoot.phi.toFixed(4));
+
+      const hU = isMass ? 'kJ/kg' : 'kJ/mol', sU = isMass ? 'kJ/(kg·K)' : 'J/(mol·K)';
+      setElText('hRefBadge', `From ${appState.Tref} K`);
+      setElText('detailHig', `${(isMass ? (ig.dH_ig_kJ * 1000) / MW : ig.dH_ig_kJ).toFixed(2)} ${hU}`); setElText('detailHR', `${(isMass ? (activeRoot.HR_kJ_mol * 1000) / MW : activeRoot.HR_kJ_mol).toFixed(2)} ${hU}`); setElText('detailHTotal', `${(isMass ? activeRoot.totalH_kJ_kg : activeRoot.totalH_kJ_mol).toFixed(2)} ${hU}`);
+      setElText('sRefBadge', `From ${appState.Tref} K, ${appState.Pref} bar`);
+      setElText('detailSig', `${(isMass ? ig.dS_ig_J_K / MW : ig.dS_ig_J_K).toFixed(2)} ${sU}`); setElText('detailSR', `${(isMass ? activeRoot.SR_J_molK / MW : activeRoot.SR_J_molK).toFixed(2)} ${sU}`); setElText('detailSTotal', `${(isMass ? activeRoot.totalS_kJ_kgK : activeRoot.totalS_J_molK).toFixed(2)} ${sU}`);
+
+      setElText('barParamA', params.A.toFixed(4)); setElText('barParamB', params.B.toFixed(4)); setElText('barParamTr', params.Tr.toFixed(3)); setElText('barParamPr', params.Pr.toFixed(3)); setElText('kpiParamB', `${params.b_cm3.toFixed(2)} cm³/mol`);
+
+      if (pulse) document.querySelectorAll('.kpi-card').forEach(c => { c.classList.remove('kpi-flash'); void c.offsetWidth; c.classList.add('kpi-flash'); });
+      if (appState.activeTab === 'charts') drawBothEssentialCharts();
+    }
+
+    window.triggerManualCompute = function () {
+      syncInputsToState(); syncTPInputs(); updateAllCalculations(true);
+      const btn = document.getElementById('solveStateBtn'), txt = document.getElementById('solveBtnText');
+      if (btn && txt) { btn.classList.replace('bg-indigo-600', 'bg-emerald-600'); txt.textContent = 'Calculated ✓'; setTimeout(() => { btn.classList.replace('bg-emerald-600', 'bg-indigo-600'); txt.textContent = 'Calculate Gas Properties'; }, 900); }
+      if (appState.lastResult) showToast(`Z = ${appState.lastResult.activeRoot.Z.toFixed(3)}, f = ${appState.lastResult.activeRoot.fugacity_bar.toFixed(1)} bar`);
+    };
+
+    const EOS_COLORS = { PR: '#4f46e5', SRK: '#10b981', RK: '#f59e0b', VDW: '#f43f5e' };
+    let boundsZP = null, boundsPV = null;
+
+    function drawBothEssentialCharts() { setElText('chartHeaderTempLabel', `T = ${appState.T.toFixed(1)} K`); drawZPChart(); drawPVChart(); }
+
+    function initCanvasCtx(id) {
+      const cvs = document.getElementById(id); if (!cvs) return null;
+      const rect = cvs.parentElement.getBoundingClientRect(); if (rect.width < 40 || rect.height < 40) return null;
+      const dpr = window.devicePixelRatio || 1; cvs.width = rect.width * dpr; cvs.height = rect.height * dpr;
+      const ctx = cvs.getContext('2d'); ctx.save(); ctx.scale(dpr, dpr);
+      const pad = { top: 24, right: 24, bottom: 44, left: 54 }; ctx.clearRect(0, 0, rect.width, rect.height);
+      return { ctx, rect, pad, plotW: rect.width - pad.left - pad.right, plotH: rect.height - pad.top - pad.bottom, isDark: document.documentElement.classList.contains('dark') };
+    }
+
+    function drawZPChart() {
+      const env = initCanvasCtx('canvasZP'); if (!env) return;
+      const { ctx, rect, pad, plotW, plotH, isDark } = env, maxP = Math.max(appState.P * 1.15, parseFloat(document.getElementById('chartMaxP').value) || 200);
+      const models = document.getElementById('chartCompareAllEos').checked ? ['PR', 'SRK', 'RK', 'VDW'] : [appState.eos];
+      const xMin = 0.5, xMax = maxP; let yMin = Infinity, yMax = -Infinity, curves = {};
+      models.forEach(m => {
+        const pts = []; for (let i = 0; i <= 120; i++) { const p = xMin + (i / 120) * (xMax - xMin), z = solveThermodynamicState(m, { ...appState, P: p }).stableRoot.Z; if (isFinite(z)) { yMin = Math.min(yMin, z); yMax = Math.max(yMax, z); pts.push({ x: p, y: z }); } }
+        curves[m] = pts;
+      });
+      yMin = Math.max(0, Math.min(yMin, 0.2) - Math.max(0.1, yMax - yMin) * 0.08); yMax = Math.max(yMax, 1.1) + Math.max(0.1, yMax - yMin) * 0.08;
+      boundsZP = { pad, plotW, plotH, xMin, xMax, yMin, yMax };
+      const toX = x => pad.left + ((x - xMin) / (xMax - xMin)) * plotW, toY = y => pad.top + plotH - ((y - yMin) / (yMax - yMin)) * plotH;
+      ctx.strokeStyle = isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(226, 232, 240, 0.9)'; ctx.lineWidth = 1; ctx.font = '10px "JetBrains Mono"'; ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+      for (let i = 0; i <= 5; i++) {
+        const xVal = xMin + (i / 5) * (xMax - xMin), sx = toX(xVal); ctx.beginPath(); ctx.moveTo(sx, pad.top); ctx.lineTo(sx, pad.top + plotH); ctx.stroke(); ctx.textAlign = 'center'; ctx.fillText(`${Math.round(xVal)}`, sx, pad.top + plotH + 16);
+        const yVal = yMin + (i / 5) * (yMax - yMin), sy = toY(yVal); ctx.beginPath(); ctx.moveTo(pad.left, sy); ctx.lineTo(pad.left + plotW, sy); ctx.stroke(); ctx.textAlign = 'right'; ctx.fillText(yVal.toFixed(2), pad.left - 6, sy + 3);
+      }
+      if (1 >= yMin && 1 <= yMax) { const sy = toY(1); ctx.save(); ctx.setLineDash([5, 4]); ctx.strokeStyle = '#94a3b8'; ctx.beginPath(); ctx.moveTo(pad.left, sy); ctx.lineTo(pad.left + plotW, sy); ctx.stroke(); ctx.restore(); }
+      ctx.save(); ctx.beginPath(); ctx.rect(pad.left, pad.top, plotW, plotH); ctx.clip();
+      models.forEach(m => { const pts = curves[m] || []; ctx.beginPath(); ctx.strokeStyle = EOS_COLORS[m]; ctx.lineWidth = m === appState.eos ? 2.5 : 1.5; pts.forEach((pt, i) => i === 0 ? ctx.moveTo(toX(pt.x), toY(pt.y)) : ctx.lineTo(toX(pt.x), toY(pt.y))); ctx.stroke(); });
+      ctx.beginPath(); ctx.arc(toX(appState.P), toY(appState.lastResult.activeRoot.Z), 6, 0, Math.PI * 2); ctx.fillStyle = EOS_COLORS[appState.eos]; ctx.fill(); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = '#64748b'; ctx.font = '600 11px "Inter"'; ctx.textAlign = 'center'; ctx.fillText('Pressure (bar)', pad.left + plotW / 2, rect.height - 10); ctx.restore();
+    }
+
+    function drawPVChart() {
+      const env = initCanvasCtx('canvasPV'); if (!env) return;
+      const { ctx, rect, pad, plotW, plotH, isDark } = env, maxP = Math.max(appState.P * 1.15, parseFloat(document.getElementById('chartMaxP').value) || 200);
+      const models = document.getElementById('chartCompareAllEos').checked ? ['PR', 'SRK', 'RK', 'VDW'] : [appState.eos];
+      const pAct = appState.lastResult.params, vMin = pAct.b_cm3 * 1.12, vMax = Math.max(appState.lastResult.activeRoot.V_cm3 * 2.2, (R_BAR_CM3 * appState.T) / 1.0);
+      const xMin = Math.log10(vMin), xMax = Math.log10(vMax), yMin = 0, yMax = maxP; boundsPV = { pad, plotW, plotH, xMin, xMax, yMin, yMax };
+      const toX = logV => pad.left + ((logV - xMin) / (xMax - xMin)) * plotW, toY = P => pad.top + plotH - ((P - yMin) / (yMax - yMin)) * plotH;
+      ctx.strokeStyle = isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(226, 232, 240, 0.9)'; ctx.lineWidth = 1; ctx.font = '10px "JetBrains Mono"'; ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+      for (let i = 0; i <= 5; i++) {
+        const logVal = xMin + (i / 5) * (xMax - xMin), vVal = 10 ** logVal, sx = toX(logVal); ctx.beginPath(); ctx.moveTo(sx, pad.top); ctx.lineTo(sx, pad.top + plotH); ctx.stroke(); ctx.textAlign = 'center'; ctx.fillText(vVal < 100 ? vVal.toFixed(0) : `${Math.round(vVal)}`, sx, pad.top + plotH + 16);
+        const yVal = yMin + (i / 5) * (yMax - yMin), sy = toY(yVal); ctx.beginPath(); ctx.moveTo(pad.left, sy); ctx.lineTo(pad.left + plotW, sy); ctx.stroke(); ctx.textAlign = 'right'; ctx.fillText(`${Math.round(yVal)}`, pad.left - 6, sy + 3);
+      }
+      ctx.save(); ctx.beginPath(); ctx.rect(pad.left, pad.top, plotW, plotH); ctx.clip();
+      models.forEach(m => {
+        const p = getEOSParameters(m, appState.T, appState.P, appState.Tc, appState.Pc, appState.omega); ctx.beginPath(); ctx.strokeStyle = EOS_COLORS[m]; ctx.lineWidth = m === appState.eos ? 2.5 : 1.5; let st = false;
+        for (let i = 0; i <= 140; i++) {
+          const logV = xMin + (i / 140) * (xMax - xMin), V = 10 ** logV; if (V <= p.b_cm3 * 1.05) continue;
+          const P_calc = (R_BAR_CM3 * appState.T) / (V - p.b_cm3) - p.aT_bar_cm6 / ((V + p.delta1 * p.b_cm3) * (V + p.delta2 * p.b_cm3));
+          if (P_calc >= 0 && P_calc <= yMax * 1.3) { const sx = toX(logV), sy = toY(P_calc); if (!st) { ctx.moveTo(sx, sy); st = true; } else ctx.lineTo(sx, sy); }
+        }
+        ctx.stroke();
+      });
+      ctx.beginPath(); ctx.arc(toX(Math.log10(appState.lastResult.activeRoot.V_cm3)), toY(appState.P), 6, 0, Math.PI * 2); ctx.fillStyle = EOS_COLORS[appState.eos]; ctx.fill(); ctx.stroke(); ctx.restore();
+      ctx.fillStyle = '#64748b'; ctx.font = '600 11px "Inter"'; ctx.textAlign = 'center'; ctx.fillText('Volume (cm³/mol, log scale)', pad.left + plotW / 2, rect.height - 10); ctx.restore();
+    }
+
+    function renderActiveEosEquations(eos) {
+      const titleEl = document.getElementById('equationModelTitle'), container = document.getElementById('equationDetailsContainer'); if (!titleEl || !container) return;
+      const data = {
+        PR: { name: 'Peng-Robinson (1976)', p: 'P = R·T / (v - b) - a(T) / [v·(v + b) + b·(v - b)]', c: 'a = 0.45724 · R²Tc² / Pc,  b = 0.07780 · R·Tc / Pc', t: 'α(Tr) = [1 + m·(1 - √Tr)]²,  m = 0.37464 + 1.54226·ω - 0.26992·ω²', z: 'Z³ - (1 - B)·Z² + (A - 3B² - 2B)·Z - (A·B - B² - B³) = 0', f: 'ln(φ) = (Z - 1) - ln(Z - B) - [A / (2√2·B)] · ln[(Z + 2.414·B) / (Z - 0.414·B)]', d: 'H^R = R·T·(Z - 1) + [(T·da/dT - a) / (2√2·b)] · ln[(v + 2.414·b) / (v - 0.414·b)],<br>S^R = R·ln(Z - B) + [(da/dT) / (2√2·b)] · ln[(v + 2.414·b) / (v - 0.414·b)]' },
+        SRK: { name: 'Soave-Redlich-Kwong (1972)', p: 'P = R·T / (v - b) - a(T) / [v·(v + b)]', c: 'a = 0.42748 · R²Tc² / Pc,  b = 0.08664 · R·Tc / Pc', t: 'α(Tr) = [1 + m·(1 - √Tr)]²,  m = 0.480 + 1.574·ω - 0.176·ω²', z: 'Z³ - Z² + (A - B - B²)·Z - A·B = 0', f: 'ln(φ) = (Z - 1) - ln(Z - B) - (A / B) · ln(1 + B / Z)', d: 'H^R = R·T·(Z - 1) + [(T·da/dT - a) / b] · ln(1 + b/v),<br>S^R = R·ln(Z - B) + [(da/dT) / b] · ln(1 + b/v)' },
+        RK: { name: 'Redlich-Kwong (1949)', p: 'P = R·T / (v - b) - a / [√T · v·(v + b)]', c: 'a = 0.42748 · R²Tc^2.5 / Pc,  b = 0.08664 · R·Tc / Pc', t: 'α(Tr) = 1 / √Tr  (Attraction term a/√T)', z: 'Z³ - Z² + (A - B - B²)·Z - A·B = 0', f: 'ln(φ) = (Z - 1) - ln(Z - B) - (A / B) · ln(1 + B / Z)', d: 'H^R = R·T·(Z - 1) - [1.5·a / (b·√T)] · ln(1 + b/v),<br>S^R = R·ln(Z - B) - [a / (2·b·T^1.5)] · ln(1 + b/v)' },
+        VDW: { name: 'Van der Waals (1873)', p: 'P = R·T / (v - b) - a / v²', c: 'a = (27/64) · R²Tc² / Pc,  b = (1/8) · R·Tc / Pc', t: 'α(Tr) = 1.0  (No acentric factor correction)', z: 'Z³ - (1 + B)·Z² + A·Z - A·B = 0', f: 'ln(φ) = (Z - 1) - ln(Z - B) - A / Z', d: 'H^R = R·T·(Z - 1) - a / v,<br>S^R = R·ln(Z - B)' }
+      }[eos] || data.PR;
+      titleEl.textContent = data.name;
+      const c = (l, v, clr = 'text-slate-800 dark:text-slate-200') => `<div class="p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 space-y-1"><span class="block text-[10px] font-semibold uppercase text-slate-400">${l}</span><div class="text-xs ${clr} font-semibold">${v}</div></div>`;
+      container.innerHTML = c('1. Pressure Equation', data.p, 'text-indigo-600') + c('2. Critical Parameters', data.c) + c('3. Temperature Function', data.t) + c('4. Cubic in Z', data.z) + c('5. Fugacity ln(φ)', data.f, 'text-emerald-600') + c('6. Departure Functions', data.d, 'text-amber-600');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons(); populateFluidDropdown(); loadFluidPreset('CH4', true);
+      document.getElementById('toggleEqCardBtn')?.addEventListener('click', () => {
+        const c = document.getElementById('equationDetailsContainer'), ch = document.getElementById('eqCardChevron'), h = c.classList.toggle('hidden');
+        ch.classList.toggle('rotate-180', !h); document.getElementById('toggleEqCardLabel').textContent = h ? 'Show Equations' : 'Hide Equations';
+      });
+      document.querySelectorAll('.eos-btn').forEach(b => b.addEventListener('click', () => {
+        appState.eos = b.getAttribute('data-eos');
+        document.querySelectorAll('.eos-btn').forEach(btn => btn.className = btn.getAttribute('data-eos') === appState.eos ? 'eos-btn px-3.5 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 text-indigo-600 shadow-sm' : 'eos-btn px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900');
+        renderActiveEosEquations(appState.eos); updateAllCalculations();
+      }));
+      document.getElementById('fluidSelect').addEventListener('change', e => loadFluidPreset(e.target.value, true));
+      document.getElementById('toggleCritBtn').addEventListener('click', () => { document.getElementById('critEditorDrawer').classList.toggle('hidden'); document.getElementById('critChevron').classList.toggle('rotate-180'); });
+      document.querySelectorAll('.crit-input').forEach(inp => inp.addEventListener('input', () => { syncInputsToState(); updateAllCalculations(); }));
+      document.getElementById('toggleCpBtn').addEventListener('click', () => { document.getElementById('cpEditorDrawer').classList.toggle('hidden'); document.getElementById('cpChevron').classList.toggle('rotate-180'); });
+      document.querySelectorAll('.cp-input').forEach(inp => inp.addEventListener('input', () => { syncInputsToState(); updateAllCalculations(); }));
+      const link = (iId, sId, p, m) => {
+        const inp = document.getElementById(iId), sld = document.getElementById(sId);
+        inp.addEventListener('input', e => { appState[p] = Math.max(m, parseFloat(e.target.value) || m); sld.value = appState[p]; updateAllCalculations(); });
+        sld.addEventListener('input', e => { appState[p] = parseFloat(e.target.value); inp.value = appState[p]; updateAllCalculations(); });
+      };
+      link('inputT', 'sliderT', 'T', 15); link('inputP', 'sliderP', 'P', 0.01);
+      document.querySelectorAll('.preset-btn').forEach(btn => btn.addEventListener('click', () => applyQuickRegimePreset(btn.getAttribute('data-preset'))));
+      document.getElementById('inputTref').addEventListener('input', e => { appState.Tref = Math.max(10, parseFloat(e.target.value) || 298.15); updateAllCalculations(); });
+      document.getElementById('inputPref').addEventListener('input', e => { appState.Pref = Math.max(0.001, parseFloat(e.target.value) || 1); updateAllCalculations(); });
+      document.getElementById('stdRefBtn').addEventListener('click', () => { appState.Tref = 298.15; appState.Pref = 1; syncTPInputs(); updateAllCalculations(); showToast('Reset to 298.15 K, 1 bar'); });
+      document.getElementById('solveStateBtn')?.addEventListener('click', window.triggerManualCompute);
+      document.querySelectorAll('aside input[type="number"]').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); window.triggerManualCompute(); } }));
+      document.querySelectorAll('.root-mode-btn').forEach(btn => btn.addEventListener('click', () => {
+        appState.selectedRootMode = btn.getAttribute('data-root-mode');
+        document.querySelectorAll('.root-mode-btn').forEach(b => b.className = b.getAttribute('data-root-mode') === appState.selectedRootMode ? 'root-mode-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 text-indigo-600 shadow-sm' : 'root-mode-btn px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600');
+        updateAllCalculations();
+      }));
+      document.querySelectorAll('.main-tab-btn').forEach(btn => btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-tab'); appState.activeTab = tab;
+        document.querySelectorAll('.main-tab-btn').forEach(b => b.classList.toggle('tab-active', b.getAttribute('data-tab') === tab));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden')); document.getElementById(`tab-${tab}`).classList.remove('hidden');
+        if (tab === 'charts') setTimeout(drawBothEssentialCharts, 30);
+      }));
+      document.getElementById('chartCompareAllEos').addEventListener('change', drawBothEssentialCharts);
+      document.getElementById('chartMaxP').addEventListener('change', drawBothEssentialCharts);
+      document.getElementById('resetChartsBtn').addEventListener('click', () => {
+        const target = Math.round(appState.Pc * 2.5), sel = document.getElementById('chartMaxP');
+        sel.value = String(Array.from(sel.options).map(o => parseInt(o.value)).reduce((p, c) => Math.abs(c - target) < Math.abs(p - target) ? c : p));
+        drawBothEssentialCharts(); showToast(`Scaled to ${sel.value} bar`);
+      });
+      const bindPointer = (cvsId, tipId, isPV) => {
+        const cvs = document.getElementById(cvsId), tip = document.getElementById(tipId);
+        cvs.addEventListener('mousemove', e => {
+          const b = isPV ? boundsPV : boundsZP; if (!b) return;
+          const rect = cvs.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
+          if (mx < b.pad.left || mx > b.pad.left + b.plotW || my < b.pad.top || my > b.pad.top + b.plotH) { tip.classList.add('hidden'); return; }
+          if (!isPV) {
+            const pVal = Math.max(0.1, b.xMin + ((mx - b.pad.left) / b.plotW) * (b.xMax - b.xMin)), s = solveThermodynamicState(appState.eos, { ...appState, P: pVal }).stableRoot;
+            tip.innerHTML = `<div class="font-semibold text-indigo-600">${appState.eos} @ ${pVal.toFixed(1)} bar</div><div>Z = ${s.Z.toFixed(3)} | V = ${s.V_cm3.toFixed(1)} cm³/mol</div><div>Fugacity = ${s.fugacity_bar.toFixed(1)} bar</div>`;
+          } else {
+            const V = 10 ** (b.xMin + ((mx - b.pad.left) / b.plotW) * (b.xMax - b.xMin)), p = appState.lastResult.params, P = (R_BAR_CM3 * appState.T) / (V - p.b_cm3) - p.aT_bar_cm6 / ((V + p.delta1 * p.b_cm3) * (V + p.delta2 * p.b_cm3));
+            tip.innerHTML = `<div class="font-semibold text-emerald-600">${appState.eos} @ ${appState.T} K</div><div>Volume = ${V.toFixed(1)} cm³/mol</div><div>Pressure = ${P.toFixed(1)} bar</div>`;
+          }
+          tip.classList.remove('hidden'); tip.style.left = `${Math.min(rect.width - 190, mx + 12)}px`; tip.style.top = `${Math.max(8, my - 36)}px`;
+        });
+        cvs.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+        cvs.addEventListener('click', e => {
+          const b = isPV ? boundsPV : boundsZP; if (!b) return;
+          const rect = cvs.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
+          let newP = !isPV ? b.xMin + ((mx - b.pad.left) / b.plotW) * (b.xMax - b.xMin) : b.yMin + ((b.pad.top + b.plotH - my) / b.plotH) * (b.yMax - b.yMin);
+          if (newP >= 0.1) { appState.P = Number(newP.toFixed(1)); syncTPInputs(); updateAllCalculations(); showToast(`Pressure set to ${appState.P} bar`); }
+        });
+      };
+      bindPointer('canvasZP', 'tooltipZP', false); bindPointer('canvasPV', 'tooltipPV', true);
+      window.addEventListener('resize', () => { if (appState.activeTab === 'charts') drawBothEssentialCharts(); });
+      document.getElementById('basisToggleBtn').addEventListener('click', () => {
+        appState.basis = appState.basis === 'molar' ? 'mass' : 'molar';
+        setElText('basisLabel', appState.basis === 'molar' ? 'Units: Molar (mol)' : 'Units: Mass (kg)'); updateAllCalculations();
+      });
+      document.getElementById('downloadFileBtn')?.addEventListener('click', () => {
+        const blob = new Blob(['<!DOCTYPE html>\n' + document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob), a = document.createElement('a');
+        a.href = url; a.download = 'thermocubic_eos_studio.html'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        showToast('Downloaded thermocubic_eos_studio.html');
+      });
+      document.getElementById('resetAllBtn').addEventListener('click', () => { Object.assign(appState, { eos: 'PR', Tref: 298.15, Pref: 1.0 }); loadFluidPreset('CH4', true); showToast('Reset to default'); });
+    });
+  </script>
+</body>
+</html>
