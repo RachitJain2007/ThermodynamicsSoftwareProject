@@ -1,0 +1,246 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Fonts and encoding ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{mathptmx}              % Times text + matching maths
+\usepackage{microtype}
+
+% ---------- Page layout ----------
+\usepackage[top=0.7in,bottom=0.7in,left=0.9in,right=0.9in]{geometry}
+\usepackage{setspace}
+\setstretch{1.0}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+% ---------- Packages ----------
+\usepackage{amsmath,amssymb}
+\usepackage{array,tabularx,booktabs}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage[font=small,labelfont=bf,labelsep=period,justification=centering]{caption}
+\usepackage[colorlinks=false,hidelinks]{hyperref}
+
+% ---------- Strictly black-and-white ----------
+% No colour package is loaded; all rules, text and tables are black on white.
+
+% ---------- Lists ----------
+\setlist[enumerate]{leftmargin=2em,itemsep=1.5pt,topsep=2pt,parsep=0pt,label=\arabic*.}
+
+% ---------- Headings (serif, black) ----------
+\titleformat{\section}
+  {\normalfont\large\scshape\bfseries}
+  {\thesection}{0.8em}{}
+\titleformat{name=\section,numberless}
+  {\normalfont\large\scshape\bfseries}
+  {}{0pt}{}
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries\itshape}
+  {\thesubsection}{0.8em}{}
+\titlespacing*{\section}{0pt}{10pt}{4pt}
+\titlespacing*{\subsection}{0pt}{7pt}{2pt}
+
+% ---------- Header / footer ----------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\itshape ThermoCubic: Real Gas PVT and Thermodynamic Property Calculator}
+\fancyhead[R]{\small CHL2002 Project Report}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% ---------- Equation spacing ----------
+\setlength{\abovedisplayskip}{3pt}
+\setlength{\belowdisplayskip}{3pt}
+
+\begin{document}
+
+% ================= TITLE BLOCK =================
+\thispagestyle{plain}
+\begin{center}
+{\small\bfseries\MakeUppercase{CHL2002 Project \,--\, Project Report}\par}
+\vspace{6pt}
+\rule{\linewidth}{1pt}\par
+\vspace{6pt}
+{\fontsize{24}{28}\selectfont\bfseries THERMOCUBIC\par}
+\vspace{3pt}
+{\large Real Gas PVT and Thermodynamic Property Calculator\par}
+\vspace{6pt}
+\rule{\linewidth}{0.4pt}\par
+\vspace{6pt}
+\begin{tabular}{c@{\hspace{3cm}}c}
+\textbf{Kaushik Raj} & \textbf{Rachit Jain} \\
+2025CH72200 & 2025CH11022
+\end{tabular}
+\end{center}
+
+\vspace{2pt}
+\begin{center}\textbf{\MakeUppercase{Abstract}}\end{center}
+\vspace{-6pt}
+\begingroup\leftskip=1.2cm\rightskip=1.2cm\small
+ThermoCubic is a calculator we built that runs in the browser and works on one pure gas at a time. You choose a gas, an equation of state (EOS), a temperature and a pressure, and it returns the compressibility factor, molar volume, density, fugacity, and the change in enthalpy and entropy from a reference state of your choice. Four cubic equations are built in: Peng--Robinson (PR), Soave--Redlich--Kwong (SRK), Redlich--Kwong (RK) and van der Waals (vdW). In this report we walk through the interface, the equations behind the code, a few ways to check that it behaves sensibly, and the limitations we noticed along the way.
+\par\endgroup
+
+% ================= 1. INTRODUCTION =================
+\section{Introduction}
+
+The ideal-gas law is a convenient assumption, but real gases stop obeying it at high pressure and close to the critical point. Molecules take up space and attract one another, and the ideal-gas law ignores both. Cubic equations of state bring these two effects back with just a few parameters, which is why they are so common in engineering calculations. We wanted a tool where we could change the conditions and see straight away how the pressure--volume--temperature (PVT) behaviour and related properties shift.
+
+ThermoCubic is a client-side web page, so every calculation happens in the browser. It ships with data for several common gases, and the critical constants, acentric factor, molar mass and ideal-gas heat-capacity coefficients can all be edited. It is meant for learning, does not handle mixtures, and has not been checked against published data.
+
+% ================= 2. THEORY =================
+\section{Theory}
+
+\subsection{Cubic Equations of State}
+
+All four models are written in one general form:
+\begin{equation}
+P = \frac{RT}{v-b} - \frac{a(T)}{(v+\delta_1 b)(v+\delta_2 b)} .
+\label{eq:eos}
+\end{equation}
+Here $P$ is pressure, $T$ is absolute temperature, $v$ is molar volume and $R$ is the gas constant. The parameter $b$ accounts for the volume the molecules occupy, while $a(T)$ accounts for the attraction between them. The two constants $\delta_1$ and $\delta_2$ decide which equation we get, so the same code can switch between PR, SRK, RK and vdW.
+
+The parameters are worked out from the critical temperature $T_c$, the critical pressure $P_c$ and the acentric factor $\omega$. For PR and SRK, $a(T)$ is multiplied by an alpha function that depends on $\omega$ and the reduced temperature $T_r = T/T_c$. RK also varies with $T_r$, whereas vdW keeps $a$ constant. Inside the code, pressure is in bar, volume in cm$^3$/mol and the departure terms in joules, and the conversions are handled consistently.
+
+\subsection{Compressibility and Volume}
+
+The compressibility factor is defined as
+\begin{equation}
+Z = \frac{Pv}{RT}.
+\label{eq:Z}
+\end{equation}
+Substituting any of the four equations into this definition gives a cubic polynomial in $Z$. The program solves it and throws away every root that is not larger than
+\begin{equation}
+B = \frac{bP}{RT},
+\label{eq:B}
+\end{equation}
+since smaller roots have no physical meaning. The remaining roots are sorted. If three are left, the smallest is treated as liquid-like, the middle one is the unstable (spinodal) root, and the largest is vapour-like. The molar volume then follows from
+\begin{equation}
+v = \frac{ZRT}{P}.
+\label{eq:v}
+\end{equation}
+
+\subsection{Fugacity of a Pure Component}
+
+Fugacity $f$ comes from the fugacity coefficient $\varphi$:
+\begin{equation}
+f = \varphi P ,
+\label{eq:fug}
+\end{equation}
+where $\ln\varphi$ is calculated from the chosen EOS and the $Z$ root. Fugacity can be pictured as an ``effective pressure''; as $\varphi\to1$ the gas behaves almost ideally. When there is more than one root, the program compares the liquid-like and vapour-like fugacities and picks the more stable one. If the two are very close, it flags a possible equilibrium.
+
+\subsection{Enthalpy and Entropy}
+
+For the ideal-gas part we use a heat-capacity polynomial that the user can edit:
+\begin{equation}
+C_p(T) = A + BT + CT^2 + DT^3 .
+\label{eq:cp}
+\end{equation}
+This is integrated from the reference temperature $T_{\mathrm{ref}}$ to the current temperature $T$, and the entropy also picks up the pressure term $-R\ln(P/P_{\mathrm{ref}})$. On top of this, the program adds the residual (departure) enthalpy and entropy given by the EOS. In the final version of the code we subtract the residual values at $(T_{\mathrm{ref}}, P_{\mathrm{ref}})$, so the reported changes in $H$ and $S$ are measured from the chosen reference state. Results can be shown per mole or per unit mass.
+
+$H^R$ and $S^R$ are the departure properties, that is, the difference between the real fluid and an ideal gas at the same $T$ and $P$. They are calculated from $Z$, the EOS parameters and the temperature derivative of $a(T)$. These are changes relative to a baseline, not absolute values.
+
+% ================= 3. HOW IT WORKS =================
+\section{How the Program Works}
+
+\begin{enumerate}
+  \item When the page loads, the gas list is filled with the presets. Methane and PR are selected by default, and a first state is calculated.
+  \item Changing the gas, EOS, temperature, pressure, reference state, heat-capacity coefficients or root/basis option triggers a recalculation.
+  \item The EOS routine finds $a(T)$, $b$, $A$, $B$ and the cubic coefficients, and a root solver returns the physically valid values of $Z$.
+  \item For every root, the program computes the molar volume, density, fugacity coefficient, fugacity and the enthalpy and entropy departures. The stable root, or the one the user selects, appears in the main results.
+  \item The ideal-gas $C_p$ integrals and the EOS departures are added to give the total change in $H$ and $S$, and the display can switch between molar and mass units.
+  \item The graphs tab draws $Z$ against $P$ and $P$ against $v$ on a canvas, and can overlay all four models. Hovering shows a tooltip, and clicking on a chart sets the pressure.
+\end{enumerate}
+
+% ================= 4. INTERFACE =================
+\section{Interface Overview}
+
+\subsection{Input Panel}
+
+The left-hand panel holds the gas selector, an expandable editor for the gas constants, another for the heat-capacity coefficients, the temperature and pressure controls, a few quick-state presets and the reference-state fields. The preset gases are methane, ethane, propane, carbon dioxide, nitrogen, water, oxygen, hydrogen, ammonia and hydrogen sulfide, plus a custom option where the user can enter their own values.
+
+\subsection{Model Selection and Equations}
+
+The top bar lets the user choose PR, SRK, RK or vdW. A collapsible card then shows the equations for whichever model is active: the pressure equation, the parameter definitions, the temperature function, the cubic in $Z$, the fugacity expression and the departure functions.
+
+\subsection{Results and Charts}
+
+The results view reports the phase and root information along with $Z$, volume, density, fugacity, fugacity coefficient, enthalpy and entropy. Smaller panels split the enthalpy and entropy into ideal-gas and residual parts. The graphs view shows the $Z$--$P$ and $P$--$v$ plots, with an option to compare models. Figures~\ref{fig:ui} and~\ref{fig:zp} show the results view and the model comparison plot.
+
+% ---- FIGURES ----
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{fig_results.jpeg}
+\caption{Results view of ThermoCubic (methane, PR, 200~K, 50~bar).}
+\label{fig:ui}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\linewidth]{fig_pressure_curves.jpeg}
+\caption{$Z$ against $P$ (left) and $P$ against $v$ (right) for methane at 200~K, with the four models overlaid.}
+\label{fig:zp}
+\end{figure}
+
+% ================= 5. TEST RUNS =================
+\section{Representative Test Runs}
+
+The page has no automated tests and no saved test log. The six checks in Table~\ref{tab:tests} are manual ones that anyone can repeat using the controls in the program. They describe what we expect to see, and we have not compared them with any published numerical values.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}c >{\raggedright\arraybackslash}p{2.7cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{No.} & \textbf{Check} & \textbf{What to do} & \textbf{What should happen} \\
+\midrule
+1 & Default state &
+Open the page with the defaults: methane, PR, $T = 200$ K, $P = 50$ bar, reference 298.15 K and 1 bar. &
+A state and its properties appear, along with a status message and the calculation time. \\
+2 & EOS comparison &
+Keep the gas and conditions fixed and switch through PR, SRK, RK and vdW. &
+$Z$, volume, fugacity and the departures all change with the model, and so do the title and formulas in the equation card. \\
+3 & Pressure response &
+Fix the gas and temperature, then increase the pressure using the box or slider. &
+The results and both plots update, and fugacity should always equal $\varphi P$. \\
+4 & Reference-state check &
+Set $T$ and $P$ equal to $T_{\mathrm{ref}}$ and $P_{\mathrm{ref}}$. &
+The ideal-gas change and the difference in departures should come out as zero, apart from rounding. \\
+5 & Unit-basis check &
+Switch between molar and mass units without touching the state. &
+$H$ and $S$ are converted using the molar mass, while the state itself stays the same. \\
+6 & Multiple roots &
+Choose a subcritical gas at a pressure where the cubic has more than one physical root. &
+Liquid-like, middle and vapour-like roots can be displayed and selected. The number of roots depends on the inputs. \\
+\bottomrule
+\end{tabularx}
+\caption{Manual test runs for checking the program.}
+\label{tab:tests}
+\end{table}
+
+% ================= 6. LIMITATIONS =================
+\section{Limitations and Possible Errors}
+
+\begin{enumerate}
+  \item \textbf{One pure component only.} There is no composition input, no mixing rule and no binary interaction parameter, so the program cannot be used for mixtures or for phase equilibrium of mixtures.
+  \item \textbf{Undocumented data.} All the gas data and $C_p$ coefficients are written into the HTML file, with no source or uncertainty given, and values typed into the custom option may be wrong. The results are only as good as the constants and the model.
+  \item \textbf{No range warnings.} Nothing warns the user when the temperature leaves the range where the $C_p$ polynomial or the EOS is reliable, so extrapolating can give unrealistic values of $H$ or $S$.
+  \item \textbf{Rough phase labels.} Phase labels follow simple rules. When only one root exists, the phase is guessed from the reduced conditions and a threshold on $Z$. The code does not draw a phase envelope or do a proper stability analysis.
+  \item \textbf{Equilibrium check.} The check uses a fixed relative tolerance on the two fugacities. It only flags near-equilibrium states and is not a saturation-pressure solver.
+  \item \textbf{Numerical sensitivity.} The root filter ($Z > B$) and the floating-point thresholds can misbehave near repeated roots or close to the critical point, where small numerical errors may change the number of roots or the phase label. Extreme or invalid inputs can also give non-finite results or errors in the logarithms.
+  \item \textbf{External dependencies.} The page loads Tailwind, fonts and Lucide icons from external CDNs. Offline, the styling and icons may not show, though the calculations still work.
+  \item \textbf{Limited validation.} The test cases above are manual checks only, with no automated tests or comparison with reference data, so accuracy should be checked independently before engineering use.
+\end{enumerate}
+
+% ================= 7. CONCLUSION =================
+\section{Conclusion}
+
+ThermoCubic shows how cubic equations of state can be turned into a simple interactive tool for estimating the PVT behaviour of a pure gas, including $Z$, volume, density, fugacity and the changes in $H$ and $S$. With four EOS models, editable gas data, a choice of reference state and live graphs, it works well as a second-year learning project and for comparing how the models behave.
+
+Its biggest strength is that the calculations and interface sit together in a single HTML file. The numbers should be read as model estimates only. Future work would add mixtures, a stronger phase-stability method, range checks, documented data sources and automated validation.
+
+\end{document}
